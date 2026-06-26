@@ -1,0 +1,218 @@
+"use client";
+
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
+import { createBox, packLine, deleteLine, deleteBox } from "./actions";
+import { idlePack, type PackState } from "./state";
+import { fmtQty } from "@/lib/format";
+import type { Product } from "@/lib/types";
+
+type Availability = {
+  product_id: string;
+  product_name: string;
+  unit: string;
+  counted: number;
+  packed: number;
+  available: number;
+};
+type LineView = {
+  id: string;
+  quantity: number | string;
+  unit: string;
+  products: { name: string } | { name: string }[] | null;
+};
+type BoxView = {
+  id: string;
+  code: string | null;
+  created_at: string;
+  pallet_items: LineView[];
+};
+
+const productName = (p: LineView["products"]) =>
+  Array.isArray(p) ? p[0]?.name : p?.name;
+
+function PendingButton({ children, busy, variant = "primary" }: { children: React.ReactNode; busy: string; variant?: "primary" | "ghost" }) {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" className={`btn btn-${variant}`} disabled={pending} aria-busy={pending}>
+      {pending ? busy : children}
+    </button>
+  );
+}
+
+function PackAlert({ state }: { state: PackState }) {
+  if (!state.message) return null;
+  const cls = state.variant === "error" ? "alert-error" : state.variant === "warning" ? "alert-warning" : "alert-success";
+  return <p className={`alert ${cls}`} role="status" aria-live="polite">{state.message}</p>;
+}
+
+function AvailabilityTable({ rows }: { rows: Availability[] }) {
+  return (
+    <section className="card p-5">
+      <h2 className="text-lg font-bold">Inventario disponible</h2>
+      <p className="hint mt-1">Disponible = contado − empacado. En negativo = empacaste de más.</p>
+      {rows.length === 0 ? (
+        <p className="hint mt-3">No hay nada contado todavía en esta ubicación.</p>
+      ) : (
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left" style={{ color: "var(--text-muted)" }}>
+                <th className="font-semibold py-2 pr-3">Producto</th>
+                <th className="font-semibold py-2 px-3 text-right">Contado</th>
+                <th className="font-semibold py-2 px-3 text-right">Empacado</th>
+                <th className="font-semibold py-2 pl-3 text-right">Disponible</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.product_id} style={{ borderTop: "1px solid var(--border)" }}>
+                  <td className="py-2 pr-3 font-medium">{r.product_name}</td>
+                  <td className="py-2 px-3 text-right tnum whitespace-nowrap">{fmtQty(Number(r.counted))} {r.unit}</td>
+                  <td className="py-2 px-3 text-right tnum whitespace-nowrap">{fmtQty(Number(r.packed))} {r.unit}</td>
+                  <td className={`py-2 pl-3 text-right tnum whitespace-nowrap ${Number(r.available) < 0 ? "neg font-semibold" : ""}`}>
+                    {fmtQty(Number(r.available))} {r.unit}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function CreateBoxForm({ locationId }: { locationId: string }) {
+  const ref = useRef<HTMLFormElement>(null);
+  return (
+    <form
+      ref={ref}
+      action={async (fd) => { await createBox(fd); ref.current?.reset(); }}
+      className="flex flex-wrap items-end gap-3"
+    >
+      <input type="hidden" name="locationId" value={locationId} />
+      <div className="field grow">
+        <label className="label" htmlFor="box-code">Etiqueta de la caja (opcional)</label>
+        <input id="box-code" name="code" type="text" maxLength={60} className="input" placeholder="Ej: Caja frágil, medicinas…" />
+      </div>
+      <PendingButton busy="Creando…">Crear caja</PendingButton>
+    </form>
+  );
+}
+
+function LineRow({ line }: { line: LineView }) {
+  return (
+    <li className="flex items-center justify-between gap-3 py-2" style={{ borderTop: "1px solid var(--border)" }}>
+      <span className="min-w-0">
+        <span className="font-medium">{productName(line.products) ?? "—"}</span>
+      </span>
+      <span className="flex items-center gap-3 shrink-0">
+        <span className="tnum whitespace-nowrap">{fmtQty(Number(line.quantity))} {line.unit}</span>
+        <form
+          action={deleteLine}
+          onSubmit={(e) => { if (!confirm("¿Quitar esta línea de la caja?")) e.preventDefault(); }}
+        >
+          <input type="hidden" name="itemId" value={line.id} />
+          <button type="submit" className="btn btn-ghost" aria-label="Quitar línea">Quitar</button>
+        </form>
+      </span>
+    </li>
+  );
+}
+
+function BoxCard({ box, number, products }: { box: BoxView; number: number; products: Product[] }) {
+  const [state, action] = useActionState(packLine, idlePack);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [productId, setProductId] = useState("");
+
+  const official = products.filter((p) => p.kind === "official");
+  const custom = products.filter((p) => p.kind === "custom");
+  const selected = products.find((p) => p.id === productId);
+
+  useEffect(() => {
+    if (state.ok) { formRef.current?.reset(); setProductId(""); }
+  }, [state]);
+
+  return (
+    <section className="card p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="font-bold">Caja {number}</h3>
+          {box.code ? <p className="hint">{box.code}</p> : null}
+        </div>
+        <form
+          action={deleteBox}
+          onSubmit={(e) => { if (!confirm(`¿Quitar la Caja ${number} y todo su contenido?`)) e.preventDefault(); }}
+        >
+          <input type="hidden" name="palletId" value={box.id} />
+          <button type="submit" className="btn btn-ghost">Quitar caja</button>
+        </form>
+      </div>
+
+      {box.pallet_items.length === 0 ? (
+        <p className="hint mt-2">Caja vacía. Agregá la primera línea abajo.</p>
+      ) : (
+        <ul className="mt-2">
+          {box.pallet_items.map((l) => <LineRow key={l.id} line={l} />)}
+        </ul>
+      )}
+
+      <form ref={formRef} action={action} className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+        <input type="hidden" name="palletId" value={box.id} />
+        <div className="field">
+          <label className="label" htmlFor={`prod-${box.id}`}>Producto</label>
+          <select id={`prod-${box.id}`} name="productId" className="select" required value={productId} onChange={(e) => setProductId(e.target.value)}>
+            <option value="" disabled>Elegí un producto…</option>
+            {official.length > 0 && (
+              <optgroup label="Oficiales">
+                {official.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
+              </optgroup>
+            )}
+            {custom.length > 0 && (
+              <optgroup label="Personalizados de esta ubicación">
+                {custom.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
+              </optgroup>
+            )}
+          </select>
+        </div>
+        <div className="field">
+          <label className="label" htmlFor={`qty-${box.id}`}>Cantidad{selected ? ` (${selected.unit})` : ""}</label>
+          <input id={`qty-${box.id}`} name="quantity" type="text" inputMode="decimal" required className="input tnum" placeholder="Ej: 12,5" />
+        </div>
+        <div className="sm:col-span-2"><PackAlert state={state} /></div>
+        <div className="sm:col-span-2"><PendingButton busy="Agregando…">Agregar a la caja</PendingButton></div>
+      </form>
+    </section>
+  );
+}
+
+export function PaletizadoBoard({
+  locationId,
+  products,
+  availability,
+  boxes,
+}: {
+  locationId: string;
+  products: Product[];
+  availability: Availability[];
+  boxes: BoxView[];
+}) {
+  return (
+    <div className="grid gap-6">
+      <AvailabilityTable rows={availability} />
+
+      <section className="card p-5">
+        <h2 className="text-lg font-bold">Cajas</h2>
+        <p className="hint mt-1 mb-4">Cada caja puede mezclar varios productos.</p>
+        <CreateBoxForm locationId={locationId} />
+      </section>
+
+      {boxes.length === 0 ? (
+        <p className="hint">Todavía no hay cajas. Creá la primera arriba.</p>
+      ) : (
+        boxes.map((b, i) => <BoxCard key={b.id} box={b} number={i + 1} products={products} />)
+      )}
+    </div>
+  );
+}

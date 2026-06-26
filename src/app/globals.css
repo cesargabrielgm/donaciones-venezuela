@@ -114,8 +114,17 @@ body {
   }
   .alert-error   { background: var(--danger-soft);  color: var(--danger);  border-color: color-mix(in oklch, var(--danger) 30%, transparent); }
   .alert-success { background: var(--success-soft); color: var(--success); border-color: color-mix(in oklch, var(--success) 30%, transparent); }
+  .alert-warning { background: color-mix(in oklch, var(--warn) 16%, var(--surface)); color: oklch(0.42 0.10 75); border-color: color-mix(in oklch, var(--warn) 45%, transparent); }
+
+  .neg { color: var(--danger); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; }
+  .card { border: 1px solid #ccc; break-inside: avoid; }
 }

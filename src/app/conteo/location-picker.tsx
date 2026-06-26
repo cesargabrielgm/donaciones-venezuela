@@ -3,13 +3,16 @@
 import { useRouter } from "next/navigation";
 import type { LocationRow } from "@/lib/types";
 
-// Selector de ubicación para owner/organizer (el counter queda fijo a la suya).
+// Selector de ubicación reutilizable (conteo y paletizado). El counter queda fijo
+// a la suya y no usa este componente.
 export function LocationPicker({
   locations,
   selectedId,
+  basePath = "/conteo",
 }: {
   locations: LocationRow[];
   selectedId: string;
+  basePath?: string;
 }) {
   const router = useRouter();
   return (
@@ -19,7 +22,7 @@ export function LocationPicker({
         id="loc-picker"
         className="select"
         defaultValue={selectedId}
-        onChange={(e) => router.push(`/conteo?loc=${e.target.value}`)}
+        onChange={(e) => router.push(`${basePath}?loc=${e.target.value}`)}
       >
         {locations.map((l) => (
           <option key={l.id} value={l.id}>{l.name}</option>

@@ -177,6 +177,9 @@ function Shell({
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {member.role === "owner" || member.role === "organizer" ? (
+              <Link href="/paletizado" className="btn btn-ghost">Paletizado</Link>
+            ) : null}
             {member.role === "owner" ? (
               <Link href="/usuarios" className="btn btn-ghost">Usuarios</Link>
             ) : null}
