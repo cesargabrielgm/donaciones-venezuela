@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getMember } from "@/lib/member";
@@ -175,9 +176,14 @@ function Shell({
               {email}
             </p>
           </div>
-          <form action={signOut}>
-            <button type="submit" className="btn btn-ghost">Salir</button>
-          </form>
+          <div className="flex items-center gap-2 shrink-0">
+            {member.role === "owner" ? (
+              <Link href="/usuarios" className="btn btn-ghost">Usuarios</Link>
+            ) : null}
+            <form action={signOut}>
+              <button type="submit" className="btn btn-ghost">Salir</button>
+            </form>
+          </div>
         </div>
       </header>
 
