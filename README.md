@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Conteo de Donaciones
 
-## Getting Started
+Herramienta interna y acotada para controlar las donaciones de **una** campaña
+humanitaria. App web en español (es-VE). **No es multi-tenant**: el aislamiento es
+por **rol** y por **ubicación**, no por inquilino.
 
-First, run the development server:
+- Stack: Next.js 16 (App Router) · TypeScript · Tailwind v4 · Supabase (Auth + Postgres + RLS).
+- Proyecto Supabase: `dpwczisqyaatshlelvrk` (separado de cualquier otro).
+
+## Puesta en marcha
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local   # completá las keys (ver .env.example)
+npm install
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Roles
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Rol | Puede |
+|---|---|
+| `owner` | Todo: ubicaciones, productos oficiales, lista de bloqueo, conteo y (futuro) paletizado. |
+| `organizer` | Conteo de todas las ubicaciones + (futuro) paletizado. |
+| `counter` | Solo conteo, solo de **su** ubicación. |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+El **dueño administra los accesos**: crea el usuario en Supabase (Authentication →
+Add user, por email) y le asigna rol/ubicación en la tabla `members`. Un usuario
+autenticado sin fila en `members` ve la pantalla "tu cuenta todavía no tiene acceso".
 
-## Learn More
+Ejemplo para habilitar a alguien (SQL, como owner/service_role):
 
-To learn more about Next.js, take a look at the following resources:
+```sql
+-- counter atado a una ubicación:
+insert into public.members (user_id, full_name, role, location_id)
+values ('<auth-user-id>', 'Nombre', 'counter', '<location-id>');
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+-- owner / organizer (sin ubicación → ven todas):
+insert into public.members (user_id, full_name, role, location_id)
+values ('<auth-user-id>', 'Nombre', 'owner', null);
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Base de datos
 
-## Deploy on Vercel
+Migraciones versionadas (forward-only) en `supabase/migrations/`. Modelo:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `locations` — centros de acopio.
+- `members` — `user_id → rol (+ location_id para counter)`. Reemplaza el modelo de
+  tenant: el aislamiento sale de acá.
+- `products` — `kind = official` (catálogo global, unidad fija) | `custom` (por
+  ubicación, define su unidad). Constraint impide custom sin ubicación / oficial con ubicación.
+- `blocked_terms` — lista de bloqueo (términos normalizados, match por substring).
+  Un trigger en la base rechaza productos custom prohibidos con mensaje amable.
+- `count_entries` — producto + cantidad (`numeric`) + unidad + ubicación + quién contó.
+- `pallets` / `pallet_items` — paletizado (Etapa 2): tablas con RLS listas, sin UI todavía.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Seguridad (RLS)
+
+- RLS **enabled + deny-by-default** en cada tabla; `with_check` en INSERT/UPDATE.
+- Autorización en la base (RLS es la verdad); el chequeo en TS es defensa en profundidad.
+- Helpers `STABLE SECURITY DEFINER` con `search_path` fijo: `has_role`,
+  `can_access_location`, `is_member`, `is_blocked`.
+- App **solo autenticada**: `anon` y `PUBLIC` no tienen ningún grant.
