@@ -74,6 +74,93 @@ export async function saveCount(
   return { ok: true, message: "Conteo guardado.", variant: "success" };
 }
 
+// Editar un conteo ya registrado. Solo cambia cantidad y nota; el producto, la
+// ubicación y la unidad quedan como estaban (la unidad es snapshot del producto).
+// counted_by/location_id NO se tocan acá y, además, la RLS (with_check) impide que
+// un counter reasigne la fila a otro o a otra ubicación. Si la fila no es del
+// usuario (y no es owner/organizer), la RLS hace que el update afecte 0 filas.
+export async function editCount(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const parsed = z
+    .object({
+      entryId: uuid,
+      quantity: quantitySchema,
+      note: z.string().trim().max(200).optional().or(z.literal("")),
+    })
+    .safeParse({
+      entryId: formData.get("entryId"),
+      quantity: formData.get("quantity"),
+      note: formData.get("note") ?? "",
+    });
+
+  if (!parsed.success) {
+    return { ok: false, message: "Revisá la cantidad (debe ser mayor a cero).", variant: "error" };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Sesión vencida. Volvé a entrar.", variant: "error" };
+
+  // Solo quantity y note. .select() nos dice si la RLS dejó tocar la fila.
+  const { data, error } = await supabase
+    .from("count_entries")
+    .update({ quantity: parsed.data.quantity, note: parsed.data.note || null })
+    .eq("id", parsed.data.entryId)
+    .select("id");
+
+  if (error) {
+    return { ok: false, message: "No se pudo guardar el cambio. Intentá de nuevo.", variant: "error" };
+  }
+  if (!data || data.length === 0) {
+    return { ok: false, message: "No podés modificar este conteo.", variant: "error" };
+  }
+
+  revalidatePath("/conteo");
+  return { ok: true, message: "Conteo actualizado.", variant: "success" };
+}
+
+// Borrar un conteo. Destructivo: cambia el "disponible" del paletizado (que es
+// derivado por suma, así que se recalcula solo). La RLS permite borrar solo lo
+// propio al counter; owner/organizer borran cualquiera de su ubicación.
+export async function deleteCount(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const parsed = z.object({ entryId: uuid }).safeParse({
+    entryId: formData.get("entryId"),
+  });
+
+  if (!parsed.success) {
+    return { ok: false, message: "No se pudo identificar el conteo a borrar.", variant: "error" };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Sesión vencida. Volvé a entrar.", variant: "error" };
+
+  const { data, error } = await supabase
+    .from("count_entries")
+    .delete()
+    .eq("id", parsed.data.entryId)
+    .select("id");
+
+  if (error) {
+    return { ok: false, message: "No se pudo borrar el conteo. Intentá de nuevo.", variant: "error" };
+  }
+  if (!data || data.length === 0) {
+    return { ok: false, message: "No podés borrar este conteo.", variant: "error" };
+  }
+
+  revalidatePath("/conteo");
+  return { ok: true, message: "Conteo borrado.", variant: "success" };
+}
+
 // Agregar un producto personalizado para una ubicación. La lista de bloqueo
 // (trigger en la base) es la pared real; acá traducimos su error a un mensaje amable.
 export async function addCustomProduct(

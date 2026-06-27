@@ -101,6 +101,9 @@ body {
   .btn-ghost { background: transparent; color: var(--text); border-color: var(--border-strong); }
   .btn-ghost:not(:disabled):hover { background: var(--surface-2); }
 
+  .btn-danger { background: var(--danger); color: oklch(1 0 0); }
+  .btn-danger:not(:disabled):hover { background: color-mix(in oklch, var(--danger) 88%, black); }
+
   .badge {
     display: inline-flex; align-items: center;
     padding: 0.125rem 0.5rem; border-radius: 999px;

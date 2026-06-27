@@ -3,9 +3,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getMember } from "@/lib/member";
 import { signOut } from "@/app/login/actions";
-import { fmtQty, fmtDateTime } from "@/lib/format";
 import { ROLE_LABEL, type LocationRow, type Product } from "@/lib/types";
 import { CountingForm } from "./counting-form";
+import { CountedList, type CountedEntry } from "./counted-list";
 import { LocationPicker } from "./location-picker";
 
 type EntryRow = {
@@ -92,6 +92,21 @@ export default async function ConteoPage({
     .limit(100);
   const entries = (entryData ?? []) as EntryRow[];
 
+  // canModify espeja la RLS: counter solo lo suyo; owner/organizer cualquiera.
+  const countedEntries: CountedEntry[] = entries.map((e) => {
+    const isMine = !!user && e.counted_by === user.id;
+    return {
+      id: e.id,
+      productName: productName(e.products) ?? "—",
+      quantity: Number(e.quantity),
+      unit: e.unit,
+      created_at: e.created_at,
+      note: e.note,
+      isMine,
+      canModify: isPrivileged || isMine,
+    };
+  });
+
   return (
     <Shell
       member={member}
@@ -111,42 +126,7 @@ export default async function ConteoPage({
           <span className="hint tnum">{entries.length} registro{entries.length === 1 ? "" : "s"}</span>
         </div>
 
-        {entries.length === 0 ? (
-          <p className="hint mt-3">
-            Todavía no contaste nada acá. Registrá el primer producto arriba y aparecerá en esta lista.
-          </p>
-        ) : (
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left" style={{ color: "var(--text-muted)" }}>
-                  <th className="font-semibold py-2 pr-3">Producto</th>
-                  <th className="font-semibold py-2 px-3 text-right">Cantidad</th>
-                  <th className="font-semibold py-2 pl-3">Cuándo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map((e) => (
-                  <tr key={e.id} style={{ borderTop: "1px solid var(--border)" }}>
-                    <td className="py-2 pr-3">
-                      <span className="font-medium">{productName(e.products) ?? "—"}</span>
-                      {e.note ? <span className="hint block">{e.note}</span> : null}
-                    </td>
-                    <td className="py-2 px-3 text-right tnum whitespace-nowrap">
-                      {fmtQty(Number(e.quantity))} {e.unit}
-                    </td>
-                    <td className="py-2 pl-3 whitespace-nowrap">
-                      <span className="tnum">{fmtDateTime(e.created_at)}</span>
-                      {user && e.counted_by === user.id ? (
-                        <span className="badge ml-2">vos</span>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <CountedList entries={countedEntries} />
       </section>
     </Shell>
   );
