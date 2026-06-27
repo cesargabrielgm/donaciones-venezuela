@@ -76,7 +76,7 @@ export default async function ConteoPage({
   // Productos disponibles: oficiales + custom de esta ubicación.
   const { data: prodData } = await supabase
     .from("products")
-    .select("id, name, kind, unit, location_id")
+    .select("id, name, kind, unit, location_id, category")
     .eq("is_active", true)
     .or(`kind.eq.official,location_id.eq.${selectedLocationId}`)
     .order("kind")
@@ -181,7 +181,10 @@ function Shell({
               <Link href="/paletizado" className="btn btn-ghost">Paletizado</Link>
             ) : null}
             {member.role === "owner" ? (
-              <Link href="/usuarios" className="btn btn-ghost">Usuarios</Link>
+              <>
+                <Link href="/ubicaciones" className="btn btn-ghost">Ubicaciones</Link>
+                <Link href="/usuarios" className="btn btn-ghost">Usuarios</Link>
+              </>
             ) : null}
             <form action={signOut}>
               <button type="submit" className="btn btn-ghost">Salir</button>

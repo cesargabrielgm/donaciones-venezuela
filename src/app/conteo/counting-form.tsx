@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import { saveCount, addCustomProduct } from "./actions";
 import { idleState, type ActionState } from "./state";
 import { UNITS, type Product } from "@/lib/types";
+import { ProductOptions } from "@/app/_components/product-options";
 
 function Submit({ children, busy }: { children: React.ReactNode; busy: string }) {
   const { pending } = useFormStatus();
@@ -35,9 +36,6 @@ export function CountingForm({
   locationId: string;
   products: Product[];
 }) {
-  const official = products.filter((p) => p.kind === "official");
-  const custom = products.filter((p) => p.kind === "custom");
-
   const [saveState, saveAction] = useActionState(saveCount, idleState);
   const [addState, addAction] = useActionState(addCustomProduct, idleState);
 
@@ -76,20 +74,7 @@ export function CountingForm({
               onChange={(e) => setProductId(e.target.value)}
             >
               <option value="" disabled>Elegí un producto…</option>
-              {official.length > 0 && (
-                <optgroup label="Oficiales">
-                  {official.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>
-                  ))}
-                </optgroup>
-              )}
-              {custom.length > 0 && (
-                <optgroup label="Personalizados de esta ubicación">
-                  {custom.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>
-                  ))}
-                </optgroup>
-              )}
+              <ProductOptions products={products} />
             </select>
           </div>
 

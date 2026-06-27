@@ -43,7 +43,7 @@ export default async function PaletizadoPage({
       supabase.rpc("inventory_availability", { p_location: selectedLocationId }),
       supabase
         .from("products")
-        .select("id, name, kind, unit, location_id")
+        .select("id, name, kind, unit, location_id, category")
         .eq("is_active", true)
         .or(`kind.eq.official,location_id.eq.${selectedLocationId}`)
         .order("kind")
@@ -73,7 +73,12 @@ export default async function PaletizadoPage({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Link href="/conteo" className="btn btn-ghost">Conteo</Link>
-            {member.role === "owner" ? <Link href="/usuarios" className="btn btn-ghost">Usuarios</Link> : null}
+            {member.role === "owner" ? (
+              <>
+                <Link href="/ubicaciones" className="btn btn-ghost">Ubicaciones</Link>
+                <Link href="/usuarios" className="btn btn-ghost">Usuarios</Link>
+              </>
+            ) : null}
             <form action={signOut}>
               <button type="submit" className="btn btn-ghost">Salir</button>
             </form>

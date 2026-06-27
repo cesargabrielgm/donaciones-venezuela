@@ -6,6 +6,7 @@ import { createBox, packLine, deleteLine, deleteBox } from "./actions";
 import { idlePack, type PackState } from "./state";
 import { fmtQty } from "@/lib/format";
 import type { Product } from "@/lib/types";
+import { ProductOptions } from "@/app/_components/product-options";
 
 type Availability = {
   product_id: string;
@@ -126,8 +127,6 @@ function BoxCard({ box, number, products }: { box: BoxView; number: number; prod
   const formRef = useRef<HTMLFormElement>(null);
   const [productId, setProductId] = useState("");
 
-  const official = products.filter((p) => p.kind === "official");
-  const custom = products.filter((p) => p.kind === "custom");
   const selected = products.find((p) => p.id === productId);
 
   useEffect(() => {
@@ -164,16 +163,7 @@ function BoxCard({ box, number, products }: { box: BoxView; number: number; prod
           <label className="label" htmlFor={`prod-${box.id}`}>Producto</label>
           <select id={`prod-${box.id}`} name="productId" className="select" required value={productId} onChange={(e) => setProductId(e.target.value)}>
             <option value="" disabled>Elegí un producto…</option>
-            {official.length > 0 && (
-              <optgroup label="Oficiales">
-                {official.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
-              </optgroup>
-            )}
-            {custom.length > 0 && (
-              <optgroup label="Personalizados de esta ubicación">
-                {custom.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
-              </optgroup>
-            )}
+            <ProductOptions products={products} />
           </select>
         </div>
         <div className="field">
