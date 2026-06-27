@@ -83,7 +83,8 @@ export async function inviteMember(
 
   const admin = createAdminClient();
   const origin = (await headers()).get("origin");
-  const redirectTo = origin ? `${origin}/auth/confirm` : undefined;
+  // El invitado llega a /definir-clave para elegir su contraseña.
+  const redirectTo = origin ? `${origin}/definir-clave` : undefined;
 
   // 1) Crear/invitar el usuario en Supabase Auth (envía el email de invitación).
   let userId: string | null = null;

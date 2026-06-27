@@ -1,13 +1,7 @@
 export type AuthState = {
-  step: "email" | "code";
-  email: string;
   message: string | null;
-  variant: "info" | "error";
+  variant: "error" | null;
+  email: string;
 };
 
-export const initialAuthState: AuthState = {
-  step: "email",
-  email: "",
-  message: null,
-  variant: "info",
-};
+export const initialAuthState: AuthState = { message: null, variant: null, email: "" };

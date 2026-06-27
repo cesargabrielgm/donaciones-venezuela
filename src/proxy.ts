@@ -34,8 +34,12 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
+  // Rutas públicas: login, recuperar contraseña y definir-clave (esta última
+  // recibe la sesión por el hash del enlace, así que el server aún no ve cookie).
   const isPublic =
-    path.startsWith("/login") || path.startsWith("/auth");
+    path.startsWith("/login") ||
+    path.startsWith("/recuperar") ||
+    path.startsWith("/definir-clave");
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();

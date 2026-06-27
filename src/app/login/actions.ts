@@ -1,72 +1,33 @@
 "use server";
 
 import { z } from "zod";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { AuthState } from "./state";
 
-const emailSchema = z.string().trim().toLowerCase().email();
+const schema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  password: z.string().min(1),
+});
 
-// Paso 1: pedir el código por email. shouldCreateUser:false → solo entran
-// usuarios que el dueño ya dio de alta. Respuesta genérica para no revelar
-// si el correo existe (owasp: sin enumeración de cuentas).
+// Login con email + contraseña. Error genérico: no revela cuál de los dos falló.
 export async function loginAction(
-  prev: AuthState,
+  _prev: AuthState,
   formData: FormData
 ): Promise<AuthState> {
-  const intent = String(formData.get("intent") ?? "");
+  const email = String(formData.get("email") ?? "");
+  const parsed = schema.safeParse({ email, password: formData.get("password") });
+  if (!parsed.success) {
+    return { message: "Ingresá tu correo y tu contraseña.", variant: "error", email };
+  }
+
   const supabase = await createClient();
-
-  if (intent === "request") {
-    const parsed = emailSchema.safeParse(formData.get("email"));
-    if (!parsed.success) {
-      return { step: "email", email: "", message: "Ingresá un correo válido.", variant: "error" };
-    }
-    const origin = (await headers()).get("origin") ?? "";
-    await supabase.auth.signInWithOtp({
-      email: parsed.data,
-      options: {
-        shouldCreateUser: false,
-        emailRedirectTo: origin ? `${origin}/auth/confirm` : undefined,
-      },
-    });
-    // Siempre avanzamos al paso del código con mensaje genérico.
-    return {
-      step: "code",
-      email: parsed.data,
-      message:
-        "Si el correo tiene acceso, te enviamos un código y un enlace. Revisá tu bandeja (y spam).",
-      variant: "info",
-    };
+  const { error } = await supabase.auth.signInWithPassword(parsed.data);
+  if (error) {
+    return { message: "Correo o contraseña incorrectos.", variant: "error", email: parsed.data.email };
   }
 
-  if (intent === "verify") {
-    const email = String(formData.get("email") ?? "");
-    const token = String(formData.get("token") ?? "").trim();
-    const parsed = z
-      .object({ email: emailSchema, token: z.string().regex(/^\d{6}$/) })
-      .safeParse({ email, token });
-    if (!parsed.success) {
-      return { step: "code", email, message: "Ingresá el código de 6 dígitos.", variant: "error" };
-    }
-    const { error } = await supabase.auth.verifyOtp({
-      email: parsed.data.email,
-      token: parsed.data.token,
-      type: "email",
-    });
-    if (error) {
-      return {
-        step: "code",
-        email,
-        message: "El código no es válido o ya venció. Pedí uno nuevo.",
-        variant: "error",
-      };
-    }
-    redirect("/conteo");
-  }
-
-  return prev;
+  redirect("/conteo");
 }
 
 export async function signOut() {
