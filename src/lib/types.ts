@@ -27,6 +27,7 @@ export const CATEGORIES = [
   "Niños y bebés",
   "Adultos mayores",
   "Limpieza y recuperación",
+  "Refugio y abrigo",
 ] as const;
 export type Category = (typeof CATEGORIES)[number];
 
