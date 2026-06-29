@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 import { saveCount, addCustomProduct } from "./actions";
 import { idleState, type ActionState } from "./state";
 import { UNITS, type Product } from "@/lib/types";
-import { ProductOptions } from "@/app/_components/product-options";
+import { ProductCombobox } from "@/app/_components/product-combobox";
 
 function Submit({ children, busy }: { children: React.ReactNode; busy: string }) {
   const { pending } = useFormStatus();
@@ -65,17 +65,13 @@ export function CountingForm({
 
           <div className="field">
             <label className="label" htmlFor="productId">Producto</label>
-            <select
+            <ProductCombobox
               id="productId"
               name="productId"
-              className="select"
-              required
+              products={products}
               value={productId}
-              onChange={(e) => setProductId(e.target.value)}
-            >
-              <option value="" disabled>Elegí un producto…</option>
-              <ProductOptions products={products} />
-            </select>
+              onChange={setProductId}
+            />
           </div>
 
           <div className="field">

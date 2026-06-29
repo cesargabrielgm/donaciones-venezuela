@@ -6,7 +6,7 @@ import { createBox, packLine, deleteLine, deleteBox } from "./actions";
 import { idlePack, type PackState } from "./state";
 import { fmtQty } from "@/lib/format";
 import type { Product } from "@/lib/types";
-import { ProductOptions } from "@/app/_components/product-options";
+import { ProductCombobox } from "@/app/_components/product-combobox";
 
 type Availability = {
   product_id: string;
@@ -161,10 +161,13 @@ function BoxCard({ box, number, products }: { box: BoxView; number: number; prod
         <input type="hidden" name="palletId" value={box.id} />
         <div className="field">
           <label className="label" htmlFor={`prod-${box.id}`}>Producto</label>
-          <select id={`prod-${box.id}`} name="productId" className="select" required value={productId} onChange={(e) => setProductId(e.target.value)}>
-            <option value="" disabled>Elegí un producto…</option>
-            <ProductOptions products={products} />
-          </select>
+          <ProductCombobox
+            id={`prod-${box.id}`}
+            name="productId"
+            products={products}
+            value={productId}
+            onChange={setProductId}
+          />
         </div>
         <div className="field">
           <label className="label" htmlFor={`qty-${box.id}`}>Cantidad{selected ? ` (${selected.unit})` : ""}</label>
