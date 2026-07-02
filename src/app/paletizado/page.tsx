@@ -50,7 +50,7 @@ export default async function PaletizadoPage({
         .order("name"),
       supabase
         .from("pallets")
-        .select("id, code, status, created_at, pallet_items(id, quantity, unit, products(name))")
+        .select("id, code, created_at, pallet_items(id, quantity, unit, products(name))")
         .eq("location_id", selectedLocationId)
         .order("created_at", { ascending: true })
         .order("created_at", { referencedTable: "pallet_items", ascending: true }),
