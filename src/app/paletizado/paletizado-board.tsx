@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createBox, packLine, deleteLine, deleteBox } from "./actions";
@@ -126,7 +127,7 @@ function LineRow({ line }: { line: LineView }) {
   );
 }
 
-function BoxCard({ box, number, products, availability }: { box: BoxView; number: number; products: Product[]; availability: Availability[] }) {
+function BoxCard({ box, number, products, availability, locationId }: { box: BoxView; number: number; products: Product[]; availability: Availability[]; locationId: string }) {
   const [state, action] = useActionState(packLine, idlePack);
   const formRef = useRef<HTMLFormElement>(null);
   const [productId, setProductId] = useState("");
@@ -149,13 +150,21 @@ function BoxCard({ box, number, products, availability }: { box: BoxView; number
           <h3 className="font-bold">Caja {number}</h3>
           {box.code ? <p className="hint">{box.code}</p> : null}
         </div>
-        <form
-          action={deleteBox}
-          onSubmit={(e) => { if (!confirm(`¿Quitar la Caja ${number} y todo su contenido?`)) e.preventDefault(); }}
-        >
-          <input type="hidden" name="palletId" value={box.id} />
-          <button type="submit" className="btn btn-ghost">Quitar caja</button>
-        </form>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href={`/paletizado/packing-list?loc=${locationId}&box=${box.id}`}
+            className="btn btn-ghost"
+          >
+            Imprimir
+          </Link>
+          <form
+            action={deleteBox}
+            onSubmit={(e) => { if (!confirm(`¿Quitar la Caja ${number} y todo su contenido?`)) e.preventDefault(); }}
+          >
+            <input type="hidden" name="palletId" value={box.id} />
+            <button type="submit" className="btn btn-ghost">Quitar caja</button>
+          </form>
+        </div>
       </div>
 
       {box.pallet_items.length === 0 ? (
@@ -238,7 +247,7 @@ export function PaletizadoBoard({
       {boxes.length === 0 ? (
         <p className="hint">Todavía no hay cajas. Creá la primera arriba.</p>
       ) : (
-        boxes.map((b, i) => <BoxCard key={b.id} box={b} number={i + 1} products={products} availability={availability} />)
+        boxes.map((b, i) => <BoxCard key={b.id} box={b} number={i + 1} products={products} availability={availability} locationId={locationId} />)
       )}
     </div>
   );

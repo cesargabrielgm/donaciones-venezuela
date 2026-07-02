@@ -18,14 +18,14 @@ const productName = (p: LineView["products"]) => (Array.isArray(p) ? p[0]?.name 
 export default async function PackingListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ loc?: string }>;
+  searchParams: Promise<{ loc?: string; box?: string }>;
 }) {
   const member = await getMember();
   if (!member) redirect("/sin-acceso");
   if (member.role !== "owner" && member.role !== "organizer") redirect("/conteo");
 
   const supabase = await createClient();
-  const { loc } = await searchParams;
+  const { loc, box } = await searchParams;
 
   const { data: locData } = await supabase
     .from("locations")
@@ -47,7 +47,16 @@ export default async function PackingListPage({
     boxes = (data ?? []) as BoxView[];
   }
 
-  const totalLines = boxes.reduce((n, b) => n + b.pallet_items.length, 0);
+  // Numeración estable "Caja N" por orden created_at (igual que los BoxCard),
+  // calculada sobre TODAS las cajas ANTES de filtrar → una caja aislada conserva
+  // su número real aunque se hayan borrado otras.
+  const numbered = boxes.map((b, i) => ({ ...b, number: i + 1 }));
+  // Filtro opcional por id de pallet: ?box=<uuid> imprime una sola caja.
+  // Sin filtro (o id inexistente) → todas, como antes.
+  const single = box ? numbered.find((b) => b.id === box) : undefined;
+  const visible = single ? [single] : numbered;
+
+  const totalLines = visible.reduce((n, b) => n + b.pallet_items.length, 0);
 
   return (
     <div className="flex-1">
@@ -60,20 +69,22 @@ export default async function PackingListPage({
 
       <main className="mx-auto w-full max-w-3xl px-4 py-6 grid gap-5">
         <div>
-          <h1 className="text-2xl font-bold">Packing List</h1>
+          <h1 className="text-2xl font-bold">
+            Packing List{single ? ` · Caja ${single.number}` : ""}
+          </h1>
           <p className="hint mt-1">
             Ubicación: <strong>{location?.name ?? "—"}</strong> · Generado: {fmtDateTime(new Date().toISOString())} ·{" "}
-            {boxes.length} caja{boxes.length === 1 ? "" : "s"}, {totalLines} línea{totalLines === 1 ? "" : "s"}
+            {visible.length} caja{visible.length === 1 ? "" : "s"}, {totalLines} línea{totalLines === 1 ? "" : "s"}
           </p>
         </div>
 
-        {boxes.length === 0 ? (
-          <p className="hint">No hay cajas armadas en esta ubicación.</p>
+        {visible.length === 0 ? (
+          <p className="hint">{box ? "Esa caja no existe en esta ubicación." : "No hay cajas armadas en esta ubicación."}</p>
         ) : (
-          boxes.map((b, i) => (
+          visible.map((b) => (
             <section key={b.id} className="card p-5">
               <h2 className="font-bold">
-                Caja {i + 1}
+                Caja {b.number}
                 {b.code ? <span className="hint font-normal"> · {b.code}</span> : null}
               </h2>
               {b.pallet_items.length === 0 ? (
