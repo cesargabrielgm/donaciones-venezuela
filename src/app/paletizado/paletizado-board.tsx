@@ -25,9 +25,16 @@ type LineView = {
 type BoxView = {
   id: string;
   code: string | null;
+  status: string;
   created_at: string;
   pallet_items: LineView[];
 };
+// Caja abierta lista para el selector de la fila de inventario.
+type BoxOption = { id: string; label: string };
+
+// Precarga: string con coma decimal (como se muestra el disponible), sin
+// separador de miles → quantitySchema lo parsea limpio (acepta coma y punto).
+const qtyDefault = (n: number) => String(n).replace(".", ",");
 
 const productName = (p: LineView["products"]) =>
   Array.isArray(p) ? p[0]?.name : p?.name;
@@ -47,7 +54,66 @@ function PackAlert({ state }: { state: PackState }) {
   return <p className={`alert ${cls}`} role="status" aria-live="polite">{state.message}</p>;
 }
 
-function AvailabilityTable({ rows }: { rows: Availability[] }) {
+// Atajo por fila: elegir caja abierta, ajustar la cantidad (precargada con el
+// disponible) y empacar con la MISMA action packLine. Una línea por acción.
+function PackRowForm({ row, boxOptions }: { row: Availability; boxOptions: BoxOption[] }) {
+  const [state, action] = useActionState(packLine, idlePack);
+  const avail = Number(row.available);
+
+  // Cantidad editable, precargada con el disponible. Se reinicia sola cuando el
+  // disponible cambia tras revalidar (mismo patrón derivar-en-render del combobox).
+  const [qty, setQty] = useState(() => qtyDefault(avail));
+  const [prevAvail, setPrevAvail] = useState(avail);
+  if (avail !== prevAvail) {
+    setPrevAvail(avail);
+    setQty(qtyDefault(avail));
+  }
+
+  const [palletId, setPalletId] = useState(() => boxOptions[0]?.id ?? "");
+  // Si la caja elegida ya no existe (se borró), cae a la primera disponible.
+  const selectedPallet = boxOptions.some((b) => b.id === palletId)
+    ? palletId
+    : boxOptions[0]?.id ?? "";
+
+  // Borde disponible ≤ 0: sin atajo (precargar 0/negativo rompería quantitySchema).
+  if (avail <= 0) return <span className="hint">—</span>;
+  if (boxOptions.length === 0) return <span className="hint whitespace-nowrap">Creá una caja</span>;
+
+  return (
+    <div className="grid gap-2">
+      <form action={action} className="flex items-center gap-2">
+        <input type="hidden" name="productId" value={row.product_id} />
+        <select
+          name="palletId"
+          value={selectedPallet}
+          onChange={(e) => setPalletId(e.target.value)}
+          className="input"
+          aria-label="Caja destino"
+          style={{ minWidth: "8rem" }}
+        >
+          {boxOptions.map((b) => (
+            <option key={b.id} value={b.id}>{b.label}</option>
+          ))}
+        </select>
+        <input
+          name="quantity"
+          value={qty}
+          onChange={(e) => setQty(e.target.value)}
+          type="text"
+          inputMode="decimal"
+          required
+          className="input tnum"
+          aria-label={`Cantidad a empacar (${row.unit})`}
+          style={{ width: "5.5rem" }}
+        />
+        <PendingButton busy="…">Empacar</PendingButton>
+      </form>
+      <PackAlert state={state} />
+    </div>
+  );
+}
+
+function AvailabilityTable({ rows, boxOptions }: { rows: Availability[]; boxOptions: BoxOption[] }) {
   return (
     <section className="card p-5">
       <h2 className="text-lg font-bold">Inventario disponible</h2>
@@ -62,7 +128,8 @@ function AvailabilityTable({ rows }: { rows: Availability[] }) {
                 <th className="font-semibold py-2 pr-3">Producto</th>
                 <th className="font-semibold py-2 px-3 text-right">Contado</th>
                 <th className="font-semibold py-2 px-3 text-right">Empacado</th>
-                <th className="font-semibold py-2 pl-3 text-right">Disponible</th>
+                <th className="font-semibold py-2 px-3 text-right">Disponible</th>
+                <th className="font-semibold py-2 pl-3">Empacar</th>
               </tr>
             </thead>
             <tbody>
@@ -71,8 +138,11 @@ function AvailabilityTable({ rows }: { rows: Availability[] }) {
                   <td className="py-2 pr-3 font-medium">{r.product_name}</td>
                   <td className="py-2 px-3 text-right tnum whitespace-nowrap">{fmtQty(Number(r.counted))} {r.unit}</td>
                   <td className="py-2 px-3 text-right tnum whitespace-nowrap">{fmtQty(Number(r.packed))} {r.unit}</td>
-                  <td className={`py-2 pl-3 text-right tnum whitespace-nowrap ${Number(r.available) < 0 ? "neg font-semibold" : ""}`}>
+                  <td className={`py-2 px-3 text-right tnum whitespace-nowrap ${Number(r.available) < 0 ? "neg font-semibold" : ""}`}>
                     {fmtQty(Number(r.available))} {r.unit}
+                  </td>
+                  <td className="py-2 pl-3 align-top">
+                    <PackRowForm row={r} boxOptions={boxOptions} />
                   </td>
                 </tr>
               ))}
@@ -191,9 +261,16 @@ export function PaletizadoBoard({
   availability: Availability[];
   boxes: BoxView[];
 }) {
+  // Cajas abiertas para el selector de cada fila. El número ("Caja N") sigue la
+  // misma posición que muestran los BoxCard (orden por created_at).
+  const boxOptions: BoxOption[] = boxes
+    .map((b, i) => ({ b, number: i + 1 }))
+    .filter(({ b }) => b.status === "open")
+    .map(({ b, number }) => ({ id: b.id, label: `Caja ${number}${b.code ? ` · ${b.code}` : ""}` }));
+
   return (
     <div className="grid gap-6">
-      <AvailabilityTable rows={availability} />
+      <AvailabilityTable rows={availability} boxOptions={boxOptions} />
 
       <section className="card p-5">
         <h2 className="text-lg font-bold">Cajas</h2>
